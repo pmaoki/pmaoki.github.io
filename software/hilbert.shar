@@ -1,0 +1,1151 @@
+#!/bin/sh
+# This is a shell archive (produced by GNU sharutils 4.2).
+# To extract the files from this archive, save it to some FILE, remove
+# everything before the `!/bin/sh' line above, then type `sh FILE'.
+#
+# Made on 1999-11-14 23:01 PST by <aoki@busytown.parc.xerox.com>.
+# Source directory was `/tilde/aoki/work/notes.linear/Hilbert/utah'.
+#
+# Existing files will *not* be overwritten unless `-c' is specified.
+#
+# This shar contains:
+# length mode       name
+# ------ ---------- ------------------------------------------
+#   9441 -r--r--r-- hilbert-orig.c
+#  16692 -r--r--r-- utah-hilbert.c
+#    125 -r--r--r-- Makefile
+#
+save_IFS="${IFS}"
+IFS="${IFS}:"
+gettext_dir=FAILED
+locale_dir=FAILED
+first_param="$1"
+for dir in $PATH
+do
+  if test "$gettext_dir" = FAILED && test -f $dir/gettext \
+     && ($dir/gettext --version >/dev/null 2>&1)
+  then
+    set `$dir/gettext --version 2>&1`
+    if test "$3" = GNU
+    then
+      gettext_dir=$dir
+    fi
+  fi
+  if test "$locale_dir" = FAILED && test -f $dir/shar \
+     && ($dir/shar --print-text-domain-dir >/dev/null 2>&1)
+  then
+    locale_dir=`$dir/shar --print-text-domain-dir`
+  fi
+done
+IFS="$save_IFS"
+if test "$locale_dir" = FAILED || test "$gettext_dir" = FAILED
+then
+  echo=echo
+else
+  TEXTDOMAINDIR=$locale_dir
+  export TEXTDOMAINDIR
+  TEXTDOMAIN=sharutils
+  export TEXTDOMAIN
+  echo="$gettext_dir/gettext -s"
+fi
+touch -am 1231235999 $$.touch >/dev/null 2>&1
+if test ! -f 1231235999 && test -f $$.touch; then
+  shar_touch=touch
+else
+  shar_touch=:
+  echo
+  $echo 'WARNING: not restoring timestamps.  Consider getting and'
+  $echo "installing GNU \`touch', distributed in GNU File Utilities..."
+  echo
+fi
+rm -f 1231235999 $$.touch
+#
+if mkdir _sh24949; then
+  $echo 'x -' 'creating lock directory'
+else
+  $echo 'failed to create lock directory'
+  exit 1
+fi
+# ============= hilbert-orig.c ==============
+if test -f 'hilbert-orig.c' && test "$first_param" != -c; then
+  $echo 'x -' SKIPPING 'hilbert-orig.c' '(file already exists)'
+else
+  $echo 'x -' extracting 'hilbert-orig.c' '(text)'
+  sed 's/^X//' << 'SHAR_EOF' > 'hilbert-orig.c' &&
+/*
+X * This software is copyrighted as noted below.  It may be freely copied,
+X * modified, and redistributed, provided that the copyright notice is 
+X * preserved on all copies.
+X * 
+X * There is no warranty or other guarantee of fitness for this software,
+X * it is provided solely "as is".  Bug reports or fixes may be sent
+X * to the author, who may or may not act on them as he desires.
+X *
+X * You may not include this software in a program or other software product
+X * without supplying the source, or without informing the end-user that the 
+X * source is available for no extra charge.
+X *
+X * If you modify this software, you should include a notice giving the
+X * name of the person performing the modification, the date of modification,
+X * and the reason for such modification.
+X */
+/* 
+X * hilbert.c - Computes Hilbert curve coordinates from position and v.v.
+X * 
+X * Author:	Spencer W. Thomas
+X * 		EECS Dept.
+X * 		University of Michigan
+X * Date:	Thu Feb  7 1991
+X * Copyright (c) 1991, University of Michigan
+X */
+static char rcsid[] = "$Header: /l/spencer/src/urt/lib/RCS/hilbert.c,v 3.0.1.1 1992/04/30 14:07:11 spencer Exp $";
+X
+/*
+X * Lots of tables to simplify calculations.  Notation: p#i means bit i
+X * in byte p (high order bit first).
+X * p_to_s:	Output s is a byte from input p such that
+X * 		s#i = p#i xor p#(i-1)
+X * s_to_p:	The inverse of the above.
+X * p_to_J:	Output J is "principle position" of input p.  The
+X * 		principle position is the last bit s.t.
+X * 		p#J != p#(n-1) (or n-1 if all bits are equal).
+X * bit:		bit[i] == (1 << (n - i))
+X * circshift:	circshift[b][i] is a right circular shift of b by i
+X * 		bits in n bits.
+X * parity:	Parity[i] is 1 or 0 depending on the parity of i (1 is odd).
+X * bitof:	bitof[b][i] is b#i.
+X * nbits:	The value of n for which the above tables have been
+X * 		calculated.
+X */
+X
+typedef unsigned int byte;
+X
+static int nbits = 0;
+X
+static byte
+X    p_to_s[512],
+X    s_to_p[512],
+X    p_to_J[512],
+X    bit[9],
+X    circshift[512][9],
+X    parity[512],
+X    bitof[512][9];
+X
+/* Calculate the above tables when nbits changes. */
+static void
+calctables(n)
+int n;
+{
+X    register int i, b;
+X    int two_n = 1 << n;
+X
+X    if ( nbits == n )
+X	return;
+X
+X    nbits = n;
+X    /* bit array is easy. */
+X    for ( b = 0; b < n; b++ )
+X	bit[b] = 1 << (n - b - 1);
+X
+X    /* Next, do bitof. */
+X    for ( i = 0; i < two_n; i++ )
+X	for ( b = 0; b < n; b++ )
+X	    bitof[i][b] = (i & bit[b]) ? 1 : 0;
+X
+X    /* circshift is independent of the others. */
+X    for ( i = 0; i < two_n; i++ )
+X	for ( b = 0; b < n; b++ )
+X	    circshift[i][b] = (i >> (b)) |
+X		((i << (n - b)) & (two_n - 1));
+X
+X    /* So is parity. */
+X    parity[0] = 0;
+X    for ( i = 1, b = 1; i < two_n; i++ )
+X    {
+X	/* Parity of i is opposite of the number you get when you
+X	 * knock the high order bit off of i.
+X	 */
+X	if ( i == b * 2 )
+X	    b *= 2;
+X	parity[i] = !parity[i - b];
+X    }
+X
+X    /* Now do p_to_s, s_to_p, and p_to_J. */
+X    for ( i = 0; i < two_n; i++ )
+X    {
+X	int s;
+X
+X	s = i & bit[0];
+X	for ( b = 1; b < n; b++ )
+X	    if ( bitof[i][b] ^ bitof[i][b-1] )
+X		s |= bit[b];
+X	p_to_s[i] = s;
+X	s_to_p[s] = i;
+X
+X	p_to_J[i] = n - 1;
+X	for ( b = 0; b < n; b++ )
+X	    if ( bitof[i][b] != bitof[i][n-1] )
+X		p_to_J[i] = b;
+X    }
+}
+X
+/*****************************************************************
+X * TAG( hilbert_i2c )
+X * 
+X * Convert an index into a Hilbert curve to a set of coordinates.
+X * Inputs:
+X * 	n:	Number of coordinate axes.
+X * 	m:	Number of bits per axis.
+X * 	r:	The index, contains n*m bits (so n*m must be <= 32).
+X * Outputs:
+X * 	a:	The list of n coordinates, each with m bits.
+X * Assumptions:
+X * 	n*m < (sizeof r) * (bits_per_byte), n <= 8, m <= 9.
+X * Algorithm:
+X * 	From A. R. Butz, "Alternative Algorithm for Hilbert's
+X * 		Space-Filling Curve", IEEE Trans. Comp., April, 1971,
+X * 		pp 424-426.
+X */
+void
+hilbert_i2c( n, m, r, a)
+int n;
+int m;
+long int r;
+int a[];
+{
+X    byte rho[9], rh, J, sigma, tau,
+X    	 sigmaT, tauT, tauT1 = 0, omega, omega1 = 0, alpha[9];
+X    register int i, b;
+X    int Jsum;
+X
+X    /* Initialize bit twiddle tables. */
+X    calctables(n);
+X
+X    /* Distribute bits from r into rho. */
+X    for ( i = m - 1; i >= 0; i-- )
+X    {
+X	rho[i] = r & ((1 << n) - 1);
+X	r >>= n;
+X    }
+X
+X    /* Loop over bytes. */
+X    Jsum = 0;
+X    for ( i = 0; i < m; i++ )
+X    {
+X	rh = rho[i];
+X	/* J[i] is principle position of rho[i]. */
+X	J = p_to_J[rh];
+X
+X	/* sigma[i] is derived from rho[i] by exclusive-oring adjacent bits. */
+X	sigma = p_to_s[rh];
+X
+X	/* tau[i] complements low bit of sigma[i], and bit at J[i] if
+X	 * necessary to make even parity.
+X	 */
+X	tau = sigma ^ 1;
+X	if ( parity[tau] )
+X	    tau ^= bit[J];
+X	
+X	/* sigmaT[i] is circular shift of sigma[i] by sum of J[0..i-1] */
+X	/* tauT[i] is same circular shift of tau[i]. */
+X	if ( Jsum > 0 )
+X	{
+X	    sigmaT = circshift[sigma][Jsum];
+X	    tauT = circshift[tau][Jsum];
+X	}
+X	else
+X	{
+X	    sigmaT = sigma;
+X	    tauT = tau;
+X	}
+X
+X	Jsum += J;
+X	if ( Jsum >= n )
+X	    Jsum -= n;
+X
+X	/* omega[i] is xor of omega[i-1] and tauT[i-1]. */
+X	if ( i == 0 )
+X	    omega = 0;
+X	else
+X	    omega = omega1 ^ tauT1;
+X	omega1 = omega;
+X	tauT1 = tauT;
+X
+X	/* alpha[i] is xor of omega[i] and sigmaT[i] */
+X	alpha[i] = omega ^ sigmaT;
+X    }
+X
+X    /* Build coordinates by taking bits from alphas. */
+X    for ( b = 0; b < n; b++ )
+X    {
+X	register int ab, bt;
+X	ab = 0;
+X	bt = bit[b];
+X	/* Unroll the loop that stuffs bits into ab.
+X	 * The result is shifted left by 9-m bits.
+X	 */
+X	switch( m )
+X	{
+X	case 9:	if ( alpha[8] & bt) ab |= 0x01;
+X	case 8:	if ( alpha[7] & bt) ab |= 0x02;
+X	case 7:	if ( alpha[6] & bt) ab |= 0x04;
+X	case 6:	if ( alpha[5] & bt) ab |= 0x08;
+X	case 5:	if ( alpha[4] & bt) ab |= 0x10;
+X	case 4:	if ( alpha[3] & bt) ab |= 0x20;
+X	case 3:	if ( alpha[2] & bt) ab |= 0x40;
+X	case 2:	if ( alpha[1] & bt) ab |= 0x80;
+X	case 1:	if ( alpha[0] & bt) ab |= 0x100;
+X	}
+X	a[b] = ab >> (9 - m);
+X    }
+}
+X
+/*****************************************************************
+X * TAG( hilbert_c2i )
+X * 
+X * Convert coordinates of a point on a Hilbert curve to its index.
+X * Inputs:
+X * 	n:	Number of coordinates.
+X * 	m:	Number of bits/coordinate.
+X * 	a:	Array of n m-bit coordinates.
+X * Outputs:
+X * 	r:	Output index value.  n*m bits.
+X * Assumptions:
+X * 	n*m <= 32, n <= 8, m <= 9.
+X * Algorithm:
+X * 	Invert the above.
+X */
+void
+hilbert_c2i( n, m, a, r)
+int n;
+int m;
+int a[];
+long int *r;
+{
+X    byte rho[9], J, sigma, tau,
+X    	 sigmaT, tauT, tauT1 = 0, omega, omega1 = 0, alpha[9];
+X    register int i, b;
+X    int Jsum;
+X    long int rl;
+X
+X    calctables(n);
+X
+X    /* Unpack the coordinates into alpha[i]. */
+X    /* First, zero out the alphas. */
+X    switch ( m ) {
+X    case 9: alpha[8] = 0;
+X    case 8: alpha[7] = 0;
+X    case 7: alpha[6] = 0;
+X    case 6: alpha[5] = 0;
+X    case 5: alpha[4] = 0;
+X    case 4: alpha[3] = 0;
+X    case 3: alpha[2] = 0;
+X    case 2: alpha[1] = 0;
+X    case 1: alpha[0] = 0;
+X    }
+X
+X    /* The loop that unpacks bits of a[b] into alpha[i] has been unrolled.
+X     * The high-order bit of a[b] has to go into alpha[0], so we pre-shift
+X     * a[b] so that its high-order bit is always in the 0x100 position.
+X     */
+X    for ( b = 0; b < n; b++ )
+X    {
+X	register int bt = bit[b], t = a[b] << (9 - m);
+X
+X	switch (m)
+X	{
+X	case 9: if ( t & 0x01 ) alpha[8] |= bt;
+X	case 8: if ( t & 0x02 ) alpha[7] |= bt;
+X	case 7: if ( t & 0x04 ) alpha[6] |= bt;
+X	case 6: if ( t & 0x08 ) alpha[5] |= bt;
+X	case 5: if ( t & 0x10 ) alpha[4] |= bt;
+X	case 4: if ( t & 0x20 ) alpha[3] |= bt;
+X	case 3: if ( t & 0x40 ) alpha[2] |= bt;
+X	case 2: if ( t & 0x80 ) alpha[1] |= bt;
+X	case 1: if ( t & 0x100 ) alpha[0] |= bt;
+X	}
+X    }
+X
+X    Jsum = 0;
+X    for ( i = 0; i < m; i++ )
+X    {
+X	/* Compute omega[i] = omega[i-1] xor tauT[i-1]. */
+X	if ( i == 0 )
+X	    omega = 0;
+X	else
+X	    omega = omega1 ^ tauT1;
+X
+X	sigmaT = alpha[i] ^ omega;
+X	/* sigma[i] is the left circular shift of sigmaT[i]. */
+X	if ( Jsum != 0 )
+X	    sigma = circshift[sigmaT][n - Jsum];
+X	else
+X	    sigma = sigmaT;
+X
+X	rho[i] = s_to_p[sigma];
+X
+X	/* Now we can get the principle position. */
+X	J = p_to_J[rho[i]];
+X
+X	/* And compute tau[i] and tauT[i]. */
+X	/* tau[i] complements low bit of sigma[i], and bit at J[i] if
+X	 * necessary to make even parity.
+X	 */
+X	tau = sigma ^ 1;
+X	if ( parity[tau] )
+X	    tau ^= bit[J];
+X
+X	/* tauT[i] is right circular shift of tau[i]. */
+X	if ( Jsum != 0 )
+X	    tauT = circshift[tau][Jsum];
+X	else
+X	    tauT = tau;
+X	Jsum += J;
+X	if ( Jsum >= n )
+X	    Jsum -= n;
+X
+X	/* Carry forth the "i-1" values. */
+X	tauT1 = tauT;
+X	omega1 = omega;
+X    }
+X
+X    /* Pack rho values into r. */
+X    rl = 0;
+X    for ( i = 0; i < m; i++ )
+X	rl = (rl << n) | rho[i];
+X    *r = rl;
+}
+X
+X
+#ifdef test
+#include <stdio.h>
+X
+main()
+{
+X    int a[9], n, m, i;
+X    long int r, r1;
+X
+X    for (;;)
+X    {
+X	printf( "Enter n, m: " );
+X	scanf( "%d", &n );
+X	if ( n == 0 )
+X	    break;
+X	scanf( "%d", &m );
+X	while ( (i = getchar()) != '\n' && i != EOF )
+X	    ;
+X	if ( i == EOF )
+X	    break;
+X	for ( r = 0; r < 1 << (n*m); r++ )
+X	{
+X	    hilbert_i2c( n, m, r, a );
+X	    if ( n*m <= 6 )
+X	    {
+X		printf( "a = " );
+X		for ( i = 0; i < n; i++ )
+X		    printf( "0x%0*x ", (m+3)/4, a[i] );
+X	    }
+X	    hilbert_c2i( n, m, a, &r1 );
+X	    if ( n*m <= 6 )
+X		printf( "r = 0x%0*x\n", (n*m+3)/4, r1 );
+X	    else if ( r != r1 )
+X		printf( "r = 0x%0*x; r1 = 0x%0*x\n", (n*m+3)/4, r,
+X			(n*m+3)/4, r1 );
+X	}
+X    }
+}
+X
+p1t( tbl, n )
+byte tbl[];
+int n;
+{
+X    int i;
+X
+X    for ( i = 0; i < n; i++ )
+X	printf( "%02x ", tbl[i] );
+X    putchar( '\n' );
+}
+X
+p2t( tbl, n, m )
+byte tbl[][9];
+int n;
+{
+X    int i;
+X
+X    for ( i = 0; i < n; i++ )
+X    {
+X	printf( "%3d: ", i );
+X	p1t( tbl[i], m );
+X    }
+}
+X
+X
+#endif
+X
+SHAR_EOF
+  $shar_touch -am 0430070792 'hilbert-orig.c' &&
+  chmod 0444 'hilbert-orig.c' ||
+  $echo 'restore of' 'hilbert-orig.c' 'failed'
+  if ( md5sum --help 2>&1 | grep 'sage: md5sum \[' ) >/dev/null 2>&1 \
+  && ( md5sum --version 2>&1 | grep -v 'textutils 1.12' ) >/dev/null; then
+    md5sum -c << SHAR_EOF >/dev/null 2>&1 \
+    || $echo 'hilbert-orig.c:' 'MD5 check failed'
+5d8c9d3a1730b93b3d44351330be3a35  hilbert-orig.c
+SHAR_EOF
+  else
+    shar_count="`LC_ALL= LC_CTYPE= LANG= wc -c < 'hilbert-orig.c'`"
+    test 9441 -eq "$shar_count" ||
+    $echo 'hilbert-orig.c:' 'original size' '9441,' 'current size' "$shar_count!"
+  fi
+fi
+# ============= utah-hilbert.c ==============
+if test -f 'utah-hilbert.c' && test "$first_param" != -c; then
+  $echo 'x -' SKIPPING 'utah-hilbert.c' '(file already exists)'
+else
+  $echo 'x -' extracting 'utah-hilbert.c' '(text)'
+  sed 's/^X//' << 'SHAR_EOF' > 'utah-hilbert.c' &&
+// this code started life as K&R C, but now it's -*- C++ -*-
+//
+// this code was swiped from the final version of the Utah Raster
+// Toolkit, ftp://ftp.cs.utah.edu/pub/urt-3.1b.tar.Z.  (and if you
+// think it's incomprehensible, you should read the original papers by
+// butz.  there isn't even an algorithm, just a bunch of equations
+// with dependencies.)
+//
+// i added a main() that reads floating point n-tuples and prepends
+// them with an (integer) hilbert index.
+//
+X
+/*
+X * This software is copyrighted as noted below.  It may be freely copied,
+X * modified, and redistributed, provided that the copyright notice is 
+X * preserved on all copies.
+X * 
+X * There is no warranty or other guarantee of fitness for this software,
+X * it is provided solely "as is".  Bug reports or fixes may be sent
+X * to the author, who may or may not act on them as he desires.
+X *
+X * You may not include this software in a program or other software product
+X * without supplying the source, or without informing the end-user that the 
+X * source is available for no extra charge.
+X *
+X * If you modify this software, you should include a notice giving the
+X * name of the person performing the modification, the date of modification,
+X * and the reason for such modification.
+X */
+/* 
+X * hilbert.c - Computes Hilbert curve coordinates from position and v.v.
+X * 
+X * Author:	Spencer W. Thomas
+X * 		EECS Dept.
+X * 		University of Michigan
+X * Date:	Thu Feb  7 1991
+X * Copyright (c) 1991, University of Michigan
+X */
+static char rcsid[] = "$Id: utah-hilbert.c,v 1.19 1998/10/12 05:41:01 aoki Exp $";
+X
+// 
+/*
+X * Lots of tables to simplify calculations.  Notation: p#i means bit i
+X * in byte p (high order bit first).
+X * p_to_s:	Output s is a byte from input p such that
+X * 		s#i = p#i xor p#(i-1)
+X * s_to_p:	The inverse of the above.
+X * p_to_J:	Output J is "principle position" of input p.  The
+X * 		principle position is the last bit s.t.
+X * 		p#J != p#(n-1) (or n-1 if all bits are equal).
+X * bit:		bit[i] == (1 << (n - i))
+X * circshift:	circshift[b][i] is a right circular shift of b by i
+X * 		bits in n bits.
+X * parity:	Parity[i] is 1 or 0 depending on the parity of i (1 is odd).
+X * bitof:	bitof[b][i] is b#i.
+X * nbits:	The value of n for which the above tables have been
+X * 		calculated.
+X */
+X
+#include <string.h>	// for memset(3)
+#include <Integer.h>	// this is the libg++ "bignum" class
+X
+//
+// in the routines that follow, 'm' is always the number of bits of
+// resolution per coordinate axis and 'n' is the dimension (number of
+// coordinate axes) as well as the width of our working 'byte'.
+//
+// 'n' is limited by the width (in bits) of our 'byte' type, since we
+// need to be able to stuff one bit from each axis into each working
+// 'byte'.  similarly, 'm' is limited by the width (in bits) of the
+// output coordinate type.  in this implementation, both happen to be
+// 32 bits.  both could be extended fairly easily, e.g., with gcc's
+// 'long long' type (cheap) or a bignum class (not cheap).
+//
+// (note that the output hilbert indices require n*m bits.)
+//
+// in practice, 'n' is also limited by the amount of memory and time
+// required to compute the tables below.  unfortunately, most of these
+// tables require space and time exponential in 'n'.  for example, 20
+// dimensions results in allocation of over 44*4*1MB=176MB on a 32-bit
+// machine!  this restriction could be eliminated fairly easily by
+// turning the table lookups into explicit computations, albeit at a
+// very high runtime penalty.
+//
+static const int max_n = 20;
+static const int n_sz = (1 << max_n);
+X
+static const int max_m = 32;
+X
+//
+// as mentioned, 'byte' needs to store (at least) one bit per
+// dimension.  using 'unsigned int' therefore allows us to support up
+// to 32 dimensions.
+//
+typedef unsigned int byte;
+X
+//
+// 'nbits' indicates the last value of 'n' for which we have
+// precomputed our tables.
+//
+static int nbits = 0;
+X
+static byte
+X    p_to_s[n_sz],
+X    s_to_p[n_sz],
+X    p_to_J[n_sz],
+X    bit[max_n],
+X    circshift[n_sz][max_n],
+X    parity[n_sz],
+X    bitof[n_sz][max_n];
+X
+/* Calculate the above tables when nbits changes. */
+static void
+calctables(int n)
+{
+X    register int i, b;
+X    int two_n = 1 << n;
+X
+X    if ( nbits == n )
+X	return;
+X
+X    nbits = n;
+X    /* bit array is easy. */
+X    for ( b = 0; b < n; b++ )
+X	bit[b] = 1 << (n - b - 1);
+X
+X    /* Next, do bitof. */
+X    for ( i = 0; i < two_n; i++ )
+X	for ( b = 0; b < n; b++ )
+X	    bitof[i][b] = (i & bit[b]) ? 1 : 0;
+X
+X    /* circshift is independent of the others. */
+X    for ( i = 0; i < two_n; i++ )
+X	for ( b = 0; b < n; b++ )
+X	    circshift[i][b] = (i >> (b)) |
+X		((i << (n - b)) & (two_n - 1));
+X
+X    /* So is parity. */
+X    parity[0] = 0;
+X    for ( i = 1, b = 1; i < two_n; i++ )
+X    {
+X	/* Parity of i is opposite of the number you get when you
+X	 * knock the high order bit off of i.
+X	 */
+X	if ( i == b * 2 )
+X	    b *= 2;
+X	parity[i] = !parity[i - b];
+X    }
+X
+X    /* Now do p_to_s, s_to_p, and p_to_J. */
+X    for ( i = 0; i < two_n; i++ )
+X    {
+X	int s;
+X
+X	s = i & bit[0];
+X	for ( b = 1; b < n; b++ )
+X	    if ( bitof[i][b] ^ bitof[i][b-1] )
+X		s |= bit[b];
+X	p_to_s[i] = s;
+X	s_to_p[s] = i;
+X
+X	p_to_J[i] = n - 1;
+X	for ( b = 0; b < n; b++ )
+X	    if ( bitof[i][b] != bitof[i][n-1] )
+X		p_to_J[i] = b;
+X    }
+}
+X
+// 
+/*****************************************************************
+X * TAG( hilbert_i2c )
+X * 
+X * Convert an index into a Hilbert curve to a set of coordinates.
+X * Inputs:
+X * 	n:	Number of coordinate axes.
+X * 	m:	Number of bits per axis.
+X * 	r:	The index, contains n*m bits.
+X * Outputs:
+X * 	a:	The list of n coordinates, each with m bits.
+X * Assumptions:
+X * 	n <= max_n, m <= max_m.
+X * Algorithm:
+X * 	From A. R. Butz, "Alternative Algorithm for Hilbert's
+X * 		Space-Filling Curve", IEEE Trans. Comp., April, 1971,
+X * 		pp 424-426.
+X */
+void
+hilbert_i2c(int n, int m, const Integer& r, unsigned int a[])
+{
+X    byte rho[max_m], rh, J, sigma, tau,
+X    	 sigmaT, tauT, tauT1 = 0, omega, omega1 = 0, alpha[max_m];
+X    register int i, b;
+X    int Jsum;
+X
+X    /* Initialize bit twiddle tables. */
+X    calctables(n);
+X
+X    /* Distribute bits from r into rho. */
+X    // this gives us m n-bit bytes.
+X    Integer r2 = r;
+X    for ( i = m - 1; i >= 0; i-- )
+X    {
+X	Integer r3 = r2 & ((1 << n) - 1);
+X	rho[i] = (byte) r3.as_long();
+X	r2 >>= n;
+X    }
+X
+X    /* Loop over bytes. */
+X    // in terms of at butz' example (table 1), we are processing one
+X    // column at a time.
+X    Jsum = 0;
+X    for ( i = 0; i < m; i++ )
+X    {
+X	rh = rho[i];
+X	/* J[i] is principle position of rho[i]. */
+X	J = p_to_J[rh];
+X
+X	/* sigma[i] is derived from rho[i] by exclusive-oring adjacent bits. */
+X	sigma = p_to_s[rh];
+X
+X	/* tau[i] complements low bit of sigma[i], and bit at J[i] if
+X	 * necessary to make even parity.
+X	 */
+X	tau = sigma ^ 1;
+X	if ( parity[tau] )
+X	    tau ^= bit[J];
+X	
+X	/* sigmaT[i] is circular shift of sigma[i] by sum of J[0..i-1] */
+X	/* tauT[i] is same circular shift of tau[i]. */
+X	if ( Jsum > 0 )
+X	{
+X	    sigmaT = circshift[sigma][Jsum];
+X	    tauT = circshift[tau][Jsum];
+X	}
+X	else
+X	{
+X	    sigmaT = sigma;
+X	    tauT = tau;
+X	}
+X
+X	Jsum += J;
+X	if ( Jsum >= n )
+X	    Jsum -= n;
+X
+X	/* omega[i] is xor of omega[i-1] and tauT[i-1]. */
+X	if ( i == 0 )
+X	    omega = 0;
+X	else
+X	    omega = omega1 ^ tauT1;
+X	omega1 = omega;
+X	tauT1 = tauT;
+X
+X	/* alpha[i] is xor of omega[i] and sigmaT[i] */
+X	alpha[i] = omega ^ sigmaT;
+X    }
+X
+X    /* Build coordinates by taking bits from alphas. */
+X    for ( b = 0; b < n; b++ )
+X    {
+X	register unsigned int ab, bt;
+X	ab = 0;
+X	bt = bit[b];
+X	/*
+X	 * The result is shifted left by max_m-m bits.
+X	 */
+X	for (int ii = m - 1, jj = max_m - m; ii >= 0; --ii, ++jj) {
+X	    if (alpha[ii] & bt) {
+X		ab |= 1 << jj;
+X	    }
+X	}
+X	a[b] = ab >> (max_m - m);
+X    }
+}
+X
+// 
+/*****************************************************************
+X * TAG( hilbert_c2i )
+X * 
+X * Convert coordinates of a point on a Hilbert curve to its index.
+X * Inputs:
+X * 	n:	Number of coordinates.
+X * 	m:	Number of bits/coordinate.
+X * 	a:	Array of n m-bit coordinates.
+X * Outputs:
+X * 	r:	Output index value.  n*m bits.
+X * Assumptions:
+X * 	n <= max_n, m <= max_m.
+X * Algorithm:
+X * 	Invert the above.
+X */
+void
+hilbert_c2i(int n, int m, unsigned int a[], Integer& r)
+{
+X    byte rho[max_m], J, sigma, tau,
+X    	 sigmaT, tauT, tauT1 = 0, omega, omega1 = 0, alpha[max_m];
+X    register int i, b;
+X    int Jsum;
+X
+X    calctables(n);
+X
+X    /* Unpack the coordinates into alpha[i]. */
+X    /* First, zero out the alphas. */
+X    (void) memset(alpha, 0, sizeof(alpha));
+X
+X    // now de-interleave the bits of a[] into alpha[].  we will go
+X    // from n m-bit coordinates to m n-bit bytes.
+X    /*
+X     * The high-order bit of a[b] has to go into alpha[0], so we pre-shift
+X     * a[b] so that its high-order bit is always in a position to be
+X     * the m-1'th bit shifted (e.g., 0x100 if max_m = m = 9).  note that
+X     * this never shifts any bits beyond the max_m'th position.
+X     */
+X    for ( b = 0; b < n; b++ )
+X    {
+X	register int bt = bit[b], t = a[b] << (max_m - m);
+X
+X	for (int ii = m - 1, jj = max_m - m; ii >= 0; --ii, ++jj) {
+X	    if (t & (1 << jj)) {
+X		alpha[ii] |= bt;
+X	    }
+X	}
+X    }
+X
+X    Jsum = 0;
+X    for ( i = 0; i < m; i++ )
+X    {
+X	/* Compute omega[i] = omega[i-1] xor tauT[i-1]. */
+X	if ( i == 0 )
+X	    omega = 0;
+X	else
+X	    omega = omega1 ^ tauT1;
+X
+X	sigmaT = alpha[i] ^ omega;
+X	/* sigma[i] is the left circular shift of sigmaT[i]. */
+X	if ( Jsum != 0 )
+X	    sigma = circshift[sigmaT][n - Jsum];
+X	else
+X	    sigma = sigmaT;
+X
+X	rho[i] = s_to_p[sigma];
+X
+X	/* Now we can get the principle position. */
+X	J = p_to_J[rho[i]];
+X
+X	/* And compute tau[i] and tauT[i]. */
+X	/* tau[i] complements low bit of sigma[i], and bit at J[i] if
+X	 * necessary to make even parity.
+X	 */
+X	tau = sigma ^ 1;
+X	if ( parity[tau] )
+X	    tau ^= bit[J];
+X
+X	/* tauT[i] is right circular shift of tau[i]. */
+X	if ( Jsum != 0 )
+X	    tauT = circshift[tau][Jsum];
+X	else
+X	    tauT = tau;
+X	Jsum += J;
+X	if ( Jsum >= n )
+X	    Jsum -= n;
+X
+X	/* Carry forth the "i-1" values. */
+X	tauT1 = tauT;
+X	omega1 = omega;
+X    }
+X
+X    /* Pack rho values into r. */
+X    r = 0;
+X    for ( i = 0; i < m; i++ )
+X	r = (r << n) | rho[i];
+}
+X
+// 
+#ifdef test
+#include <stdio.h>
+#include <stdlib.h>
+X
+void
+main(int argc, char* argv[])
+{
+X    unsigned int a[max_n], n, m, i;
+X
+X    if (argc != 3) {
+X	cerr << "Usage: " << argv[0] << " n m" << endl;
+X	exit(1);
+X    }
+X    n = atoi(argv[1]);
+X    m = atoi(argv[2]);
+X    if (n < 1 || n > max_n || m < 1 || m > max_m) {
+X	cerr << argv[0] << ": "
+X	     << "1 <= n <= " << max_n << ", "
+X	     << "1 <= m <= " << max_m << endl;
+X	exit(1);
+X    }
+X    Integer stop = 1;
+X    stop <<= n*m;
+X    for ( Integer r = 0; r < stop; ++r )
+X    {
+X	hilbert_i2c( n, m, r, a );
+X	{
+X	    for ( i = 0; i < n; i++ )
+X		printf( "%d ", a[i] );
+X	    printf("\n");
+X	}
+X	/* now check the invertibility of our result */
+X	Integer r1 = 0;
+X	hilbert_c2i( n, m, a, r1 );
+X	if ( r != r1 )
+X	    cout << "r = " << r << "; r1 = " << r1 << endl;
+X    }
+X    exit(0);
+}
+X
+#else
+// 
+#include <stdio.h>
+#include <stdlib.h>
+#include <fstream.h>
+#include <strstream.h>
+#include <errno.h>
+#include <math.h>
+X
+void
+main(int argc, char* argv[])
+{
+X    if (argc != 5) {
+X	cerr << "Usage: " << argv[0] << " n m data-file bounds-file" << endl;
+X	exit(1);
+X    }
+X
+X    int n = atoi(argv[1]);
+X    int m = atoi(argv[2]);
+X    if (n < 1 || n > max_n || m < 1 || m > max_m) {
+X	cerr << argv[0] << ": "
+X	     << "1 <= n <= " << max_n << ", "
+X	     << "1 <= m <= " << max_m << endl;
+X	exit(1);
+X    }
+X
+X    //
+X    // 1. the bounds file should contain n 2-tuples representing the
+X    // min/max of each of the n dimensions.
+X    //
+X    ifstream bs(argv[4]);
+X    if (bs.fail()) {
+X	cerr << argv[0] << ": could not open " << argv[4]
+X	     << ": " << strerror(errno) << endl;
+X	exit(1);
+X    }
+X
+X    double* mins = new double[n];
+X    double* maxs = new double[n];
+X    for (int i = 0; i < n; ++i) {
+X	bs >> mins[i] >> maxs[i];
+X	if (bs.eof() || bs.fail()) {
+X	    cerr << argv[0] << ": line " << i+1 << " of " << argv[4]
+X		 << ": early EOF" << endl;
+X	    exit(1);
+X	}
+X	if (mins[i] >= maxs[i]) {
+X	    cerr << argv[0] << ": line " << i+1 << " of " << argv[4]
+X		 << ": min=" << mins[i] << ", max=" << maxs[i] << endl;
+X	    exit(1);
+X	}
+X    }
+X    bs.close();
+X
+X    //
+X    // 2. now generate a partitioning.  we will use simple range
+X    // partitioning to assign integer partition values to the floating
+X    // point values, since hilbert order only works on integers.
+X    //
+X    // XXX NOTE
+X    //
+X    // should this be (1) a per-axis partitioning or (2) a global
+X    // partitioning?  per-axis uses the maximum number of bits per
+X    // axis value.  however, it makes distance in the "short" axes
+X    // "more important"; this artificially increases their importance
+X    // relative to their importance in the original space.  (it's the
+X    // same as normalizing to the unit cube.)  if the axes are skew,
+X    // it will result in clusters with skew aspect ratios in the
+X    // native space.  the alternative is to use the partition widths
+X    // of the "long"est axis for all axes.  if we have a fixed number
+X    // of bits to use, this risks assigning fewer bits (even zero) to
+X    // the "short" axes.  (on the other hand, if we don't fix the
+X    // number of bits but assume that the "short"est axis uses some
+X    // minimal number of bits, then the "long"est axis may use an
+X    // unreasonable number of bits.  remember, these are double
+X    // precision floating point numbers, so we may need a *lot* of
+X    // bits to provide fine-grain integer partitioning for all axes on
+X    // the same scale!)  while messy, this approach better models what
+X    // the user was thinking w.r.t. Euclidean distance (i.e., spatial
+X    // locality) when they established the original multidimensional
+X    // space.  so: if you want robust partitioning, just don't have
+X    // axes that differ in size by more than a few orders of magnitude
+X    // (and definitely by fewer than nine, if the partitioning uses 32
+X    // bits!).
+X    //
+X    double maxrange = -1;
+X    for (int i = 0; i < n; ++i) {
+X	if (maxs[i] - mins[i] > maxrange) {
+X	    maxrange = maxs[i] - mins[i];
+X	}
+X    }
+#if 1
+X    for (int i = 0; i < n; ++i) {
+X	cerr << "axis " << i+1 << " loses "
+X	     << ceil(log(maxrange / (maxs[i] - mins[i])) / log(2))
+X	     << " bits" << endl;
+X    }
+#endif
+X    double binwidth = maxrange / (1 << m);
+X
+X    //
+X    // 3. the data file contains an arbitrary number of n-tuples.
+X    // output the n-tuples in their original order, prefixed with the
+X    // hilbert index.  (since this value is variable-length, you must
+X    // remember to use numeric sorting, e.g., 'sort -n', rather than
+X    // lexicographic sorting, e.g., 'sort'.)
+X    //
+X    istream* ds;
+X    if (!strcmp(argv[3], "-")) {
+X	ds = &cin;
+X    } else {
+X	ds = new ifstream(argv[3]);
+X    }
+X    if (ds->fail()) {
+X	cerr << argv[0] << ": could not open " << argv[3]
+X	     << ": " << strerror(errno) << endl;
+X	exit(1);
+X    }
+X
+X    unsigned int* vals = new unsigned int[n];
+X    double val, bin;
+X    Integer r;
+X    char buf[BUFSIZ];
+X    int line = 1;
+X    double two_m = pow(2, m);
+X    while (1) {
+X	//
+X	// we are careful here to output exactly what the user fed in.
+X	// life is complicated by the fact that (1) conversions
+X	// to/from printable floating point representations are not
+X	// always invertible and (2) the standard c++ iostream output
+X	// routines may fiddle with your format and/or precision.
+X	// it's easiest to just save the original input!
+X	//
+X	ds->getline(buf, BUFSIZ);
+X	if (ds->eof() || ds->fail()) {
+X	    // we're just out of n-tuples, so we're done.
+X	    exit(0);
+X	}
+X	//
+X	// this is slow code, but you're going to spend most of your
+X	// time in the 'sort' program, believe me.
+X	//
+X	istrstream ss(buf);
+X	if (ss.fail()) {
+X	    cerr << argv[0] << ": line " << line << " of " << argv[3]
+X		 << endl;
+X	    exit(1);
+X	}
+X	for (int i = 0; i < n; ++i) {
+X	    ss >> val;
+X	    if (ss.fail()) {
+X		// we somehow ran out of data in the middle of a
+X		// n-tuple!
+X		cerr << argv[0] << ": line " << line << " of " << argv[3]
+X		     << ": early EOF" << endl;
+X		exit(1);
+X	    }
+X	    //
+X	    // translate the coordinates into integers before
+X	    // converting them.  note that the lowest value of each
+X	    // axis is always zero no matter what the original
+X	    // coordinates were.  this is equivalent to translating
+X	    // the entire data set; this does affect the clustering
+X	    // somewhat, but probably in a good way (since the "short"
+X	    // axes will be translated from wherever they would
+X	    // normally be, which may have been split across various
+X	    // quadrant axies, into the all-zero quadrant).
+X	    //
+X	    vals[i] = (unsigned int)
+X		fabs(floor(((val - mins[i]) / binwidth) * two_m));
+X	}
+X	r = 0;
+X	hilbert_c2i(n, m, vals, r);
+X	cout << r << ' ' << buf << endl;
+X	++line;
+X    }
+X    /*NOTREACHED*/
+}
+X
+#endif
+SHAR_EOF
+  $shar_touch -am 1011224198 'utah-hilbert.c' &&
+  chmod 0444 'utah-hilbert.c' ||
+  $echo 'restore of' 'utah-hilbert.c' 'failed'
+  if ( md5sum --help 2>&1 | grep 'sage: md5sum \[' ) >/dev/null 2>&1 \
+  && ( md5sum --version 2>&1 | grep -v 'textutils 1.12' ) >/dev/null; then
+    md5sum -c << SHAR_EOF >/dev/null 2>&1 \
+    || $echo 'utah-hilbert.c:' 'MD5 check failed'
+9281486afcfa19f066dd2d74e4173b85  utah-hilbert.c
+SHAR_EOF
+  else
+    shar_count="`LC_ALL= LC_CTYPE= LANG= wc -c < 'utah-hilbert.c'`"
+    test 16692 -eq "$shar_count" ||
+    $echo 'utah-hilbert.c:' 'original size' '16692,' 'current size' "$shar_count!"
+  fi
+fi
+# ============= Makefile ==============
+if test -f 'Makefile' && test "$first_param" != -c; then
+  $echo 'x -' SKIPPING 'Makefile' '(file already exists)'
+else
+  $echo 'x -' extracting 'Makefile' '(text)'
+  sed 's/^X//' << 'SHAR_EOF' > 'Makefile' &&
+CC= g++
+CFLAGS= -I.. -O2 #-Dtest
+LIBS= -L..
+X
+all: utah
+X
+utah: utah-hilbert.c
+X	$(CC) $(CFLAGS) -o utah $<
+X
+clean:
+X	$(RM) utah
+SHAR_EOF
+  $shar_touch -am 1006205998 'Makefile' &&
+  chmod 0444 'Makefile' ||
+  $echo 'restore of' 'Makefile' 'failed'
+  if ( md5sum --help 2>&1 | grep 'sage: md5sum \[' ) >/dev/null 2>&1 \
+  && ( md5sum --version 2>&1 | grep -v 'textutils 1.12' ) >/dev/null; then
+    md5sum -c << SHAR_EOF >/dev/null 2>&1 \
+    || $echo 'Makefile:' 'MD5 check failed'
+84393873be79b05a23b38969e673f610  Makefile
+SHAR_EOF
+  else
+    shar_count="`LC_ALL= LC_CTYPE= LANG= wc -c < 'Makefile'`"
+    test 125 -eq "$shar_count" ||
+    $echo 'Makefile:' 'original size' '125,' 'current size' "$shar_count!"
+  fi
+fi
+rm -fr _sh24949
+exit 0

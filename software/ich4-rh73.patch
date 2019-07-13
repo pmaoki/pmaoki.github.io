@@ -1,0 +1,64 @@
+*** linux-2.4.18-5smp/arch/i386/kernel/pci-pc.c	Mon Jun 10 11:51:25 2002
+--- linux-2.4.18-5smp+ich4/arch/i386/kernel/pci-pc.c	Sun Apr 27 23:33:20 2003
+***************
+*** 1261,1266 ****
+--- 1261,1267 ----
+  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_INTEL,	PCI_DEVICE_ID_INTEL_82454GX,	pci_fixup_i450gx },
+  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_UMC,	PCI_DEVICE_ID_UMC_UM8886BF,	pci_fixup_umc_ide },
+  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_SI,	PCI_DEVICE_ID_SI_5513,		pci_fixup_ide_trash },
++ 	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_INTEL,	PCI_DEVICE_ID_INTEL_82801DB_11,	pci_fixup_ide_trash },
+  	{ PCI_FIXUP_HEADER,	PCI_ANY_ID,		PCI_ANY_ID,			pci_fixup_ide_bases },
+  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_SI,	PCI_DEVICE_ID_SI_5597,		pci_fixup_latency },
+  	{ PCI_FIXUP_HEADER,	PCI_VENDOR_ID_SI,	PCI_DEVICE_ID_SI_5598,		pci_fixup_latency },
+*** linux-2.4.18-5smp/drivers/ide/piix.c	Mon Jun 10 11:51:40 2002
+--- linux-2.4.18-5smp+ich4/drivers/ide/piix.c	Sun Apr 27 23:28:46 2003
+***************
+*** 96,101 ****
+--- 96,102 ----
+  		case PCI_DEVICE_ID_INTEL_82801BA_9:
+  		case PCI_DEVICE_ID_INTEL_82801CA_10:
+  		case PCI_DEVICE_ID_INTEL_82801CA_11:
++ 		case PCI_DEVICE_ID_INTEL_82801DB_11:
+  			p += sprintf(p, "\n                                Intel PIIX4 Ultra 100 Chipset.\n");
+  			break;
+  		case PCI_DEVICE_ID_INTEL_82372FB_1:
+***************
+*** 372,378 ****
+  	int ultra100		= ((dev->device == PCI_DEVICE_ID_INTEL_82801BA_8) ||
+  				   (dev->device == PCI_DEVICE_ID_INTEL_82801BA_9) ||
+  				   (dev->device == PCI_DEVICE_ID_INTEL_82801CA_10) ||
+! 				   (dev->device == PCI_DEVICE_ID_INTEL_82801CA_11)) ? 1 : 0;
+  	int ultra66		= ((ultra100) ||
+  				   (dev->device == PCI_DEVICE_ID_INTEL_82801AA_1) ||
+  				   (dev->device == PCI_DEVICE_ID_INTEL_82372FB_1)) ? 1 : 0;
+--- 373,380 ----
+  	int ultra100		= ((dev->device == PCI_DEVICE_ID_INTEL_82801BA_8) ||
+  				   (dev->device == PCI_DEVICE_ID_INTEL_82801BA_9) ||
+  				   (dev->device == PCI_DEVICE_ID_INTEL_82801CA_10) ||
+! 				   (dev->device == PCI_DEVICE_ID_INTEL_82801CA_11) ||
+! 				   (dev->device == PCI_DEVICE_ID_INTEL_82801DB_11)) ? 1 : 0;
+  	int ultra66		= ((ultra100) ||
+  				   (dev->device == PCI_DEVICE_ID_INTEL_82801AA_1) ||
+  				   (dev->device == PCI_DEVICE_ID_INTEL_82372FB_1)) ? 1 : 0;
+*** linux-2.4.18-5smp/drivers/ide/ide-pci.c	Mon Jun 10 11:51:41 2002
+--- linux-2.4.18-5smp+ich4/drivers/ide/ide-pci.c	Sun Apr 27 23:11:48 2003
+***************
+*** 46,51 ****
+--- 46,52 ----
+  #define DEVID_PIIX4U4	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82801BA_8})
+  #define DEVID_PIIX4U5	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82801CA_10})
+  #define DEVID_PIIX4U6	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82801CA_11})
++ #define DEVID_PIIX4U8	((ide_pci_devid_t){PCI_VENDOR_ID_INTEL,   PCI_DEVICE_ID_INTEL_82801DB_11})
+  #define DEVID_VIA_IDE	((ide_pci_devid_t){PCI_VENDOR_ID_VIA,     PCI_DEVICE_ID_VIA_82C561})
+  #define DEVID_MR_IDE	((ide_pci_devid_t){PCI_VENDOR_ID_VIA,     PCI_DEVICE_ID_VIA_82C576_1})
+  #define DEVID_VP_IDE	((ide_pci_devid_t){PCI_VENDOR_ID_VIA,     PCI_DEVICE_ID_VIA_82C586_1})
+***************
+*** 427,432 ****
+--- 428,434 ----
+  	{DEVID_PIIX4U4, "PIIX4",	PCI_PIIX,	ATA66_PIIX,	INIT_PIIX,	NULL,		{{0x41,0x80,0x80}, {0x43,0x80,0x80}},	ON_BOARD,	0 },
+  	{DEVID_PIIX4U5, "PIIX4",	PCI_PIIX,	ATA66_PIIX,	INIT_PIIX,	NULL,		{{0x41,0x80,0x80}, {0x43,0x80,0x80}},	ON_BOARD,	0 },
+  	{DEVID_PIIX4U6,	"PIIX4",	PCI_PIIX,	ATA66_PIIX,	INIT_PIIX,	NULL,		{{0x41,0x80,0x80}, {0x43,0x80,0x80}},	ON_BOARD,	0 },
++ 	{DEVID_PIIX4U8, "PIIX4",	PCI_PIIX,	ATA66_PIIX,	INIT_PIIX,	NULL,		{{0x41,0x80,0x80},{0x43,0x80,0x80}},	ON_BOARD,	0 },
+  	{DEVID_VIA_IDE,	"VIA_IDE",	NULL,		NULL,		NULL,		NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}},	ON_BOARD,	0 },
+  	{DEVID_MR_IDE,	"VP_IDE",	PCI_VIA82CXXX,	ATA66_VIA82CXXX,INIT_VIA82CXXX,	DMA_VIA82CXXX,	{{0x40,0x02,0x02}, {0x40,0x01,0x01}}, 	ON_BOARD,	0 },
+  	{DEVID_VP_IDE,	"VP_IDE",	PCI_VIA82CXXX,	ATA66_VIA82CXXX,INIT_VIA82CXXX,	DMA_VIA82CXXX,	{{0x40,0x02,0x02}, {0x40,0x01,0x01}}, 	ON_BOARD,	0 },

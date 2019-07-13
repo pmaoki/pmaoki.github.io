@@ -1,0 +1,501 @@
+this file contains changes to the base NIST SPHERE 2.6a source
+distribution so it will compile on relatively recent versions of Linux
+and pass the tsphere test suite:
+
+(1) compilation fixes for exit.c
+(2) a bugfix for spread.c (won't pass tsphere)
+	tsphere SEGVs; found double fclose() using valgrind
+(3) define a linux option in install.sh
+(4) a bugfix for err_util.c (won't pass tsphere)
+	tsphere SEGVs; found using built-in (fortify) bounds-checker
+(5) various changes to deal with printing pointers (mainly relevant
+    when sizeof(void*) != sizeof(int))
+(6) handle newer systems in which the ancient "+n" sortkey syntax has
+    been entirely removed from sort(1)
+
+unpack the SPHERE distribution and run "patch -p0 < sphere.patch.amd64".
+
+this SHOULD pass the regression test "./bin/tsphere -d lib/data" (see
+the manual page in doc/man1/tsphere.1 for more information), though
+tsphere will likely print some warnings about header differences on
+little-endian systems (i386 and amd64 systems, for example).  from
+what i can tell, these are harmless, though i am a little concerned
+that they shouldn't (to my knowledge) be happening.
+
+this patch has only been tested on an ubuntu-10.04-amd64 system.
+
+=========================== cut here ===========================
+
+diff -c -r nist-2.6a/include/util/macros.h nist/include/util/macros.h
+*** nist-2.6a/include/util/macros.h	1996-05-16 12:41:14.000000000 -0700
+--- nist/include/util/macros.h	2010-06-14 19:35:19.000000000 -0700
+***************
+*** 87,93 ****
+--- 87,95 ----
+  /* pad.c */    void set_pad PROTO((char *pad, char *str)) ;
+  /* pad.c */    void set_pad_n PROTO((char *pad, int n)) ;
+  /* pad.c */    void set_pad_cent_n PROTO((char *pad, int len)) ;
++ #if 0
+  /* pad.c */    char *center PROTO((char *str, int len)) ;
++ #endif
+  
+  /* string.c */ void search_for_char PROTO((char **ptr, char chr)) ;
+  /* string.c */ void search_back_for_char PROTO((char *beg_ptr, char **ptr, char chr)) ;
+diff -c -r nist-2.6a/include/util/utillib.h nist/include/util/utillib.h
+*** nist-2.6a/include/util/utillib.h	1996-05-16 10:24:17.000000000 -0700
+--- nist/include/util/utillib.h	2010-06-14 19:40:21.000000000 -0700
+***************
+*** 29,32 ****
+--- 29,36 ----
+  #include <util/mtrf.h>
+  #include <util/rpg.h>
+  
++ #if defined(NARCH_LINUX)
++ #define	HAVE_PTR_FMT
++ #endif
++ 
+  #endif
+diff -c -r nist-2.6a/src/lib/sp/exit.c nist/src/lib/sp/exit.c
+*** nist-2.6a/src/lib/sp/exit.c	1996-06-06 13:09:46.000000000 -0700
+--- nist/src/lib/sp/exit.c	2010-06-14 18:52:56.000000000 -0700
+***************
+*** 26,39 ****
+  # include <util/fob.h>
+  # include <sp/shorten/shorten.h>
+  
+  /* From: fred@masterd.fdn.org (Frederic SAVOIR) */
+  #ifdef __WATCOMC__
+  extern volatile int errno;
+  #else
+  extern int errno;
+  #endif
+- 
+  extern char *sys_errlist[];
+  extern char *argv0;
+  extern char *filenameo;
+  extern FILE *fileo;
+--- 26,42 ----
+  # include <util/fob.h>
+  # include <sp/shorten/shorten.h>
+  
++ #ifdef NARCH_LINUX
++ #include <errno.h>
++ #else
+  /* From: fred@masterd.fdn.org (Frederic SAVOIR) */
+  #ifdef __WATCOMC__
+  extern volatile int errno;
+  #else
+  extern int errno;
+  #endif
+  extern char *sys_errlist[];
++ #endif
+  extern char *argv0;
+  extern char *filenameo;
+  extern FILE *fileo;
+***************
+*** 82,88 ****
+--- 85,95 ----
+    else {
+      (void) vsprintf(exitmessage, fmt, args);
+      strcat(exitmessage, ": ");
++ #ifndef NARCH_LINUX
+      strcat(exitmessage, sys_errlist[errno]);
++ #else
++     strcat(exitmessage, strerror(errno));
++ #endif
+      strcat(exitmessage, "\n");
+    }
+  
+diff -c -r nist-2.6a/src/lib/sp/sphere.c nist/src/lib/sp/sphere.c
+*** nist-2.6a/src/lib/sp/sphere.c	1996-06-06 13:09:49.000000000 -0700
+--- nist/src/lib/sp/sphere.c	2010-06-14 19:42:23.000000000 -0700
+***************
+*** 20,26 ****
+  # include <math.h>
+  # include <stdio.h>
+  # include <setjmp.h>
+! # include <util/fob.h>
+  # include <sp/shorten/shorten.h>
+  # include <sp/shorten/shrt_sph.h>
+  
+--- 20,26 ----
+  # include <math.h>
+  # include <stdio.h>
+  # include <setjmp.h>
+! # include <util/utillib.h>
+  # include <sp/shorten/shorten.h>
+  # include <sp/shorten/shrt_sph.h>
+  
+diff -c -r nist-2.6a/src/lib/sp/spopen.c nist/src/lib/sp/spopen.c
+*** nist-2.6a/src/lib/sp/spopen.c	1996-06-06 13:09:38.000000000 -0700
+--- nist/src/lib/sp/spopen.c	2010-06-14 19:44:31.000000000 -0700
+***************
+*** 305,312 ****
+--- 305,317 ----
+      sp_print_lines(spifr->header,fp);
+      fprintf(fp,"\n");
+      fprintf(fp,"Wave Sructure\n");
++ #ifdef HAVE_PTR_FMT
++     fprintf(fp,"File pointer:     %p\n",spifr->waveform->sp_fp);
++     fprintf(fp,"FOB pointer:      %p\n",spifr->waveform->sp_fob);
++ #else
+      fprintf(fp,"File pointer:     %x\n",(unsigned)spifr->waveform->sp_fp);
+      fprintf(fp,"FOB pointer:      %x\n",(unsigned)spifr->waveform->sp_fob);
++ #endif
+      fprintf(fp,"Samples Read:     %d\n",spifr->waveform->samples_read);
+      fprintf(fp,"Samples written:  %d\n",spifr->waveform->samples_written);
+      fprintf(fp,"Checksum:         %d\n",spifr->waveform->checksum);
+***************
+*** 316,331 ****
+--- 321,351 ----
+      fprintf(fp,"Waveform Setup    %d\n",spifr->waveform->waveform_setup);
+      fprintf(fp,"File Tran. Len    %d\n",
+  	    spifr->waveform->file_data_buffer_len);
++ #ifdef HAVE_PTR_FMT
++     fprintf(fp,"File Tran. Buf.   %p\n",
++ 	    spifr->waveform->file_data_buffer);
++ #else
+      fprintf(fp,"File Tran. Buf.   %x\n",
+  	    (unsigned)spifr->waveform->file_data_buffer);
++ #endif
+      fprintf(fp,"Code Tran. Len    %x\n",
+  	    (unsigned)spifr->waveform->converted_buffer_len);
++ #ifdef HAVE_PTR_FMT
++     fprintf(fp,"Code Tran. Buf.   %p\n",
++ 	    spifr->waveform->converted_buffer);
++ #else
+      fprintf(fp,"Code Tran. Buf.   %x\n",
+  	    (unsigned)spifr->waveform->converted_buffer);
++ #endif
+      fprintf(fp,"Interkleave Len   %d\n",
+  	    spifr->waveform->interleave_buffer_len);
++ #ifdef HAVE_PTR_FMT
++     fprintf(fp,"Interleave Buf.   %p\n",
++ 	    spifr->waveform->interleave_buffer);
++ #else
+      fprintf(fp,"Interleave Buf.   %x\n",
+  	    (unsigned)spifr->waveform->interleave_buffer);
++ #endif
+      
+      fprintf(fp,"\n");
+  
+diff -c -r nist-2.6a/src/lib/sp/spread.c nist/src/lib/sp/spread.c
+*** nist-2.6a/src/lib/sp/spread.c	1996-06-06 13:09:43.000000000 -0700
+--- nist/src/lib/sp/spread.c	2010-06-14 02:16:00.000000000 -0700
+***************
+*** 1031,1038 ****
+      /**** End SRI bugfix. ****/
+      
+      if (! decomp_into_memory) { 
+! 	/* Close the original file pointer to the SPHERE file */
+! 	fclose(fob_in->fp);
+      }
+      fob_destroy(fob_in);	    
+      
+--- 1031,1042 ----
+      /**** End SRI bugfix. ****/
+      
+      if (! decomp_into_memory) { 
+! 	/* fob_in->fp was copied from spifr->waveform->sp_fp, which may */
+! 	/* now be closed in the code marked "SRI bugfix" above.         */
+! 	if (spifr->waveform->sp_fp != FPNULL) {
+! 	    /* Close the original file pointer to the SPHERE file */
+! 	    fclose(fob_in->fp);
+! 	}
+      }
+      fob_destroy(fob_in);	    
+      
+diff -c -r nist-2.6a/src/lib/util/err_util.c nist/src/lib/util/err_util.c
+*** nist-2.6a/src/lib/util/err_util.c	1996-06-06 12:11:39.000000000 -0700
+--- nist/src/lib/util/err_util.c	2010-06-14 20:05:40.000000000 -0700
+***************
+*** 42,53 ****
+  
+  char *get_subordinated_message(void){
+      int l=0; 
+!     char *type, num[10];
+      strncpy(static_error_util_buffer,static_error_util_proc_name,
+  	    ERROR_UTIL_MESSAGE_LEN);
+      l = strlen(static_error_util_buffer);
+  
+!     if (l < ERROR_UTIL_MESSAGE_LEN)
+  	switch(static_error_util_return_type){
+  	  case RETURN_TYPE_WARNING: type = " Warning "; break;
+  	  case RETURN_TYPE_SUCCESS: type = " Success "; break;
+--- 42,53 ----
+  
+  char *get_subordinated_message(void){
+      int l=0; 
+!     char *type, num[40];
+      strncpy(static_error_util_buffer,static_error_util_proc_name,
+  	    ERROR_UTIL_MESSAGE_LEN);
+      l = strlen(static_error_util_buffer);
+  
+!     if (l < ERROR_UTIL_MESSAGE_LEN) {
+  	switch(static_error_util_return_type){
+  	  case RETURN_TYPE_WARNING: type = " Warning "; break;
+  	  case RETURN_TYPE_SUCCESS: type = " Success "; break;
+***************
+*** 55,61 ****
+  	  default:                  type = " UNKNOWN "; break;
+  	}
+  	strncat(static_error_util_buffer, type,ERROR_UTIL_MESSAGE_LEN-l);
+!     l = strlen(static_error_util_buffer);
+      
+      if (l < ERROR_UTIL_MESSAGE_LEN){
+  	sprintf(num,"Code: %d Message: ",static_error_util_return_code);
+--- 55,62 ----
+  	  default:                  type = " UNKNOWN "; break;
+  	}
+  	strncat(static_error_util_buffer, type,ERROR_UTIL_MESSAGE_LEN-l);
+! 	l = strlen(static_error_util_buffer);
+!     }
+      
+      if (l < ERROR_UTIL_MESSAGE_LEN){
+  	sprintf(num,"Code: %d Message: ",static_error_util_return_code);
+***************
+*** 63,73 ****
+  	l = strlen(static_error_util_buffer);
+      }
+  
+!     if (l < ERROR_UTIL_MESSAGE_LEN)
+  	strncat(static_error_util_buffer,static_error_util_message,
+! 		ERROR_UTIL_MESSAGE_LEN);
+!     if (*(static_error_util_buffer + strlen(static_error_util_buffer)-1)=='\n')
+! 	*(static_error_util_buffer + strlen(static_error_util_buffer)-1)= '\0';
+      return(static_error_util_buffer);
+  }
+  
+--- 64,77 ----
+  	l = strlen(static_error_util_buffer);
+      }
+  
+!     if (l < ERROR_UTIL_MESSAGE_LEN) {
+  	strncat(static_error_util_buffer,static_error_util_message,
+! 		ERROR_UTIL_MESSAGE_LEN-l);
+! 	l = strlen(static_error_util_buffer);
+!     }
+! 
+!     if (*(static_error_util_buffer + l - 1)=='\n')
+! 	*(static_error_util_buffer + l - 1)= '\0';
+      return(static_error_util_buffer);
+  }
+  
+diff -c -r nist-2.6a/src/lib/util/mtrf.c nist/src/lib/util/mtrf.c
+*** nist-2.6a/src/lib/util/mtrf.c	1996-06-06 12:11:40.000000000 -0700
+--- nist/src/lib/util/mtrf.c	2010-06-14 19:40:43.000000000 -0700
+***************
+*** 14,21 ****
+      if (bytes == 0)
+  	bytes = 1;
+      cp=malloc(bytes);
+!     if (mtrf_verbose)
+  	fprintf(stderr,"Malloc %x %d\n",(unsigned)cp,bytes), fflush(stderr);
+      return cp;
+  }
+  
+--- 14,26 ----
+      if (bytes == 0)
+  	bytes = 1;
+      cp=malloc(bytes);
+!     if (mtrf_verbose) {
+! #ifdef HAVE_PTR_FMT
+! 	fprintf(stderr,"Malloc %p %d\n",cp,bytes), fflush(stderr);
+! #else
+  	fprintf(stderr,"Malloc %x %d\n",(unsigned)cp,bytes), fflush(stderr);
++ #endif
++     }
+      return cp;
+  }
+  
+***************
+*** 25,33 ****
+  
+      cp = realloc(ptr, bytes);
+      if (cp != ptr)
+! 	if (mtrf_verbose)
+  	    fprintf(stderr,"REALLOC\nFree %x\nMalloc %x %d\n",(unsigned)ptr,
+  		    (unsigned)cp,bytes), fflush(stderr);
+      return cp;
+  }
+  
+--- 30,44 ----
+  
+      cp = realloc(ptr, bytes);
+      if (cp != ptr)
+! 	if (mtrf_verbose) {
+! #ifdef HAVE_PTR_FMT
+! 	    fprintf(stderr,"REALLOC\nFree %p\nMalloc %p %d\n",ptr,
+! 		    cp,bytes), fflush(stderr);
+! #else
+  	    fprintf(stderr,"REALLOC\nFree %x\nMalloc %x %d\n",(unsigned)ptr,
+  		    (unsigned)cp,bytes), fflush(stderr);
++ #endif
++ 	}
+      return cp;
+  }
+  
+***************
+*** 38,45 ****
+      rtn = 1;
+      if (mtrf_dealloc)
+  	free(p);
+!     if (mtrf_verbose)
+  	fprintf(stderr,"Free %x\n",(unsigned)p), fflush(stderr);
+      return(rtn);
+  }
+  
+--- 49,61 ----
+      rtn = 1;
+      if (mtrf_dealloc)
+  	free(p);
+!     if (mtrf_verbose) {
+! #ifdef HAVE_PTR_FMT
+! 	fprintf(stderr,"Free %p\n",p), fflush(stderr);
+! #else
+  	fprintf(stderr,"Free %x\n",(unsigned)p), fflush(stderr);
++ #endif
++     }
+      return(rtn);
+  }
+  
+***************
+*** 51,58 ****
+  
+      cp=mtrf_malloc(len);
+      strcpy(cp,p);
+!     if (mtrf_dealloc == 0)
+  	fprintf(stderr,"Malloc %x %d\n",(unsigned)cp,len), fflush(stderr);
+      return(cp);
+  }
+  
+--- 67,79 ----
+  
+      cp=mtrf_malloc(len);
+      strcpy(cp,p);
+!     if (mtrf_dealloc == 0) {
+! #ifdef HAVE_PTR_FMT
+! 	fprintf(stderr,"Malloc %p %d\n",cp,len), fflush(stderr);
+! #else
+  	fprintf(stderr,"Malloc %x %d\n",(unsigned)cp,len), fflush(stderr);
++ #endif
++     }
+      return(cp);
+  }
+  
+diff -c -r nist-2.6a/src/lib/util/pad.c nist/src/lib/util/pad.c
+*** nist-2.6a/src/lib/util/pad.c	1996-06-06 12:11:39.000000000 -0700
+--- nist/src/lib/util/pad.c	2010-06-14 19:35:00.000000000 -0700
+***************
+*** 79,84 ****
+--- 79,85 ----
+         pad[0] = NULL_CHAR;
+  }
+  
++ #if 0
+  /************************************************************/
+  /* Return a pointer to a string with a centered version of  */
+  /* str to len characters                                    */	
+***************
+*** 107,109 ****
+--- 108,111 ----
+      return(desc);
+  
+  }
++ #endif
+diff -c -r nist-2.6a/src/scripts/gen_make.sh nist/src/scripts/gen_make.sh
+*** nist-2.6a/src/scripts/gen_make.sh	1994-11-16 09:48:42.000000000 -0800
+--- nist/src/scripts/gen_make.sh	2010-06-14 02:16:21.000000000 -0700
+***************
+*** 31,36 ****
+--- 31,46 ----
+  	DONE_CMD=""
+  fi
+  
++ #### Check for sort option syntax
++ sort +1 < /dev/null 1>/dev/null 2>&1
++ if test $? -eq 0; then
++ 	# old-style is 0-based
++ 	SORT2_OPT="+1"
++ else
++ 	# new-style is 1-based
++ 	SORT2_OPT="-k 2"
++ fi
++ 
+  if test ! -n "${COMPILER_COMMAND}" -o ! -n "${INSTALL_COMMAND}" -o ! -n "${RANLIB_COMMAND}" -o ! -n "${ARCHIVER_COMMAND}" -o ! -n "${LOCAL_CC_DEFINES}" ; then
+          echo "Error: Environment variables must be set for:"
+          echo "     COMPILER_COMMAND = ${COMPILER_COMMAND}"
+***************
+*** 107,113 ****
+          PROG_SUBDIR_NAMES="$prgsubdir" ; export PROG_SUBDIR_NAMES;
+          LINK_LIBRARY_NAMES="`echo $linklibs | tr ' ' '\012' | \
+                                     sh $SCRIPT_DIR/gen_lord.sh | \
+!                                    sort -t_ -n +1 | sed s/_[0-9]$// | \
+                                     tr '\012' ' ' `" ; export  LINK_LIBRARY_NAMES
+          if test "$prgsubdir" = "" ; then
+              sh $SCRIPT_DIR/gen_setv.sh < lib/makes/make_spg.txt > src/$srcdir/Makefile
+--- 117,123 ----
+          PROG_SUBDIR_NAMES="$prgsubdir" ; export PROG_SUBDIR_NAMES;
+          LINK_LIBRARY_NAMES="`echo $linklibs | tr ' ' '\012' | \
+                                     sh $SCRIPT_DIR/gen_lord.sh | \
+!                                    sort -t_ -n ${SORT2_OPT} | sed s/_[0-9]$// | \
+                                     tr '\012' ' ' `" ; export  LINK_LIBRARY_NAMES
+          if test "$prgsubdir" = "" ; then
+              sh $SCRIPT_DIR/gen_setv.sh < lib/makes/make_spg.txt > src/$srcdir/Makefile
+***************
+*** 130,136 ****
+              PROG_SUBDIR_NAMES="";       export PROG_SUBDIR_NAMES;
+              LINK_LIBRARY_NAMES="`echo $linklibs | tr ' ' '\012' | \
+                                     sh $SCRIPT_DIR/gen_lord.sh | \
+!                                    sort -t_ -n +1 | sed s/_[0-9]$// | \
+                                     tr '\012' ' ' `"; export LINK_LIBRARY_NAMES;
+              sh $SCRIPT_DIR/gen_setv.sh < lib/makes/make_spg.txt > src/$srcdir/$prgsub/Makefile             
+              $DONE_CMD
+--- 140,146 ----
+              PROG_SUBDIR_NAMES="";       export PROG_SUBDIR_NAMES;
+              LINK_LIBRARY_NAMES="`echo $linklibs | tr ' ' '\012' | \
+                                     sh $SCRIPT_DIR/gen_lord.sh | \
+!                                    sort -t_ -n ${SORT2_OPT} | sed s/_[0-9]$// | \
+                                     tr '\012' ' ' `"; export LINK_LIBRARY_NAMES;
+              sh $SCRIPT_DIR/gen_setv.sh < lib/makes/make_spg.txt > src/$srcdir/$prgsub/Makefile             
+              $DONE_CMD
+diff -c -r nist-2.6a/src/scripts/install.sh nist/src/scripts/install.sh
+*** nist-2.6a/src/scripts/install.sh	1996-08-26 12:32:00.000000000 -0700
+--- nist/src/scripts/install.sh	2010-06-14 20:11:39.000000000 -0700
+***************
+*** 51,57 ****
+  
+  format="ID,OS,Compiler_Command,Compiler_Flags,Install_Command,Archive_Sorting_Command,Archive_Update_Command,Architecture"
+  defs=`echo '1:Sun OS-4.1.[12]:gcc -ansi::install -c -s -m 755:ranlib:ar ru:SUN
+! 2:Sun Solaris:gcc::cp:echo:ar ru:SUN
+  3:Next OS:cc::install -c -s -m 755:ranlib -s:ar ru:NEXT
+  4:Dec OSF/1 (with gcc):gcc -ansi::cp:ranlib:ar ru:OSF1
+  5:Dec OSF/1 (with cc):cc:-std1 -Olimit 700 -O -g3:cp -p:ranlib:ar ru:OSF1
+--- 51,57 ----
+  
+  format="ID,OS,Compiler_Command,Compiler_Flags,Install_Command,Archive_Sorting_Command,Archive_Update_Command,Architecture"
+  defs=`echo '1:Sun OS-4.1.[12]:gcc -ansi::install -c -s -m 755:ranlib:ar ru:SUN
+! 2:Sun Solaris:gcc:-O2:cp:echo:ar ru:SUN
+  3:Next OS:cc::install -c -s -m 755:ranlib -s:ar ru:NEXT
+  4:Dec OSF/1 (with gcc):gcc -ansi::cp:ranlib:ar ru:OSF1
+  5:Dec OSF/1 (with cc):cc:-std1 -Olimit 700 -O -g3:cp -p:ranlib:ar ru:OSF1
+***************
+*** 59,66 ****
+  7:HP Unix (with gcc):gcc -ansi::cp:ar -rs:ar -ru:HP
+  8:HP Unix (with cc):cc -Aa::cp:ar -rs:ar -ru:HP
+  9:IBM AIX:cc:-g:cp:ranlib:ar ru:AIX
+! 10:Custom:cc:-g:install -s -m 755:ranlib:ar ru:SUN' | tr '\012' ','`
+! Custom=10
+  
+  #get_field(){
+  #    # $1 the definition string
+--- 59,67 ----
+  7:HP Unix (with gcc):gcc -ansi::cp:ar -rs:ar -ru:HP
+  8:HP Unix (with cc):cc -Aa::cp:ar -rs:ar -ru:HP
+  9:IBM AIX:cc:-g:cp:ranlib:ar ru:AIX
+! 10:Linux:gcc:-O2:install -s -m 755:ranlib:ar ru:LINUX
+! 11:Custom:cc:-g:install -s -m 755:ranlib:ar ru:SUN' | tr '\012' ','`
+! Custom=11
+  
+  #get_field(){
+  #    # $1 the definition string
