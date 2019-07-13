@@ -21,7 +21,15 @@
         <p>{{ site.description | default: site.github.project_tagline }}</p>
       </header>
 
-      <div id="banner" style="display:initial;text-align:center;font-weight:bold;height:20px;right:0%;margin-right:0px;padding-right:0px">
+      <style>
+	@media print, screen and (max-width: 480px) {
+	  #banner {
+	    display:initial;
+            top:80px;
+	  }
+	}
+      </style>
+      <div id="banner" style="text-align:center;font-weight:bold;height:20px;right:0%;margin-right:0px;padding-right:0px">
 	[<a href="{{site.baseurl}}/index.html"><strong>about</strong></a>]
 	[<a href="{{site.baseurl}}/.admin/overview.html"><strong>overview</strong></a>]
 	[<a href="{{site.baseurl}}/.admin/data.html"><strong>data science</strong></a>]
