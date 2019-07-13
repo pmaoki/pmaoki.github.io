@@ -14,7 +14,7 @@ sabbatical to study the mathematics underlying machine learning
 | senior staff research scientist | Intel Research Berkeley | [Intel][intel] |
 | member of research staff | Computer Science Laboratory | [Xerox PARC][parc] |
 | Ph.D. | [Computer Science][ucbcs] | U.C. Berkeley |
-| surface warfare officer | [USS <em>MERRILL</em> (DD 976)][usn] | U.S. Navy |
+| surface warfare officer | [USS _MERRILL_ (DD 976)][usn] | U.S. Navy |
 | B.S. | [Electrical Engineering][ucbee] | U.C. Berkeley |
 
 # Research areas
@@ -25,6 +25,8 @@ cooperative work, international development, and sociolinguistics;
 ubiquitous computing and sensing systems; and database and distributed
 systems. Much of this work has involved a substantial amount of [data
 science and GIS work][data].
+
+This is covered in more detail [here](.admin/overview.html).
 
 [google]: https://www.google.com/
 [intel]: https://www.intel.com/
